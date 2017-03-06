@@ -1,13 +1,12 @@
 Name:		pktgen-dpdk
-Version:	3.1.0
+Version:	3.1.2
 Release:	1%{?dist}
 Summary:	Traffic generator utilizing DPDK
 
 Group:		Applications/Internet
 License:	BSD (??)
 URL:		https://github.com/Pktgen/Pktgen-DPDK/
-
-Source0:	http://dpdk.org/browse/apps/pktgen-dpdk/snapshot/pktgen-v%{version}.tar.gz
+Source:	http://dpdk.org/browse/apps/pktgen-dpdk/snapshot/pktgen-%{version}.tar.gz
 
 BuildRequires:	dpdk-devel >= 16.04
 # bogus deps due to makefile confusion over static linkage and whatnot
@@ -27,7 +26,7 @@ BuildConflicts: lua-devel
 %{summary}
 
 %prep
-%setup -q -n pktgen-v%{version}
+%setup -q -n pktgen-%{version}
 
 %build
 unset RTE_SDK
@@ -64,6 +63,9 @@ done
 %{_libdir}/%{name}
 
 %changelog
+* Fri Mar 03 2017 Flavio Leitner <fbl@redhat.com> - 3.1.2-1
+- Update to 3.1.2
+
 * Mon Jan 23 2017 Timothy Redaelli <tredaelli@redhat.com> 3.1.0-1
 - Update to 3.1.0
 - Bundled lua version is 5.3.3

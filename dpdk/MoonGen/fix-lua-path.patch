@@ -1,0 +1,14 @@
+diff --git a/src/moongen-main.cpp b/src/moongen-main.cpp
+index e6c7ff5..59e5b6b 100644
+--- a/src/moongen-main.cpp
++++ b/src/moongen-main.cpp
+@@ -2,8 +2,7 @@
+ 
+ int main(int argc, char** argv) {
+ 	// TODO: get the install-path via cmake
+-	libmoon::setup_base_dir({"libmoon", "../libmoon", "/usr/local/lib/moongen"}, true);
+-	libmoon::setup_extra_lua_path({"../lua/?.lua", "../lua/?/init.lua", "../lua/lib/?.lua", "../lua/lib/?/init.lua"});
++	libmoon::setup_base_dir({"/usr/share/MoonGen"}, true);
+ 	return libmoon::main(argc, argv);
+ }
+ 

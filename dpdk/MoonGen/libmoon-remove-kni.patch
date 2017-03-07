@@ -1,0 +1,21 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 8c84c78..d1264e1 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -19,7 +19,6 @@ SET(FILES
+ 	src/lock
+ 	src/namespaces
+ 	src/ring
+-	src/kni
+ 	src/filter
+ 	src/pcap
+ 	src/timestamping
+@@ -29,7 +28,7 @@ SET(FILES
+ )
+ 
+ SET(DPDK_LIBS
+-	ethdev       rte_distributor  rte_kni       rte_mbuf      rte_pmd_bond   rte_pmd_ring         rte_power  rte_timer
++	ethdev       rte_distributor  rte_mbuf      rte_pmd_bond  rte_pmd_ring   rte_power            rte_timer
+ 	rte_acl      rte_eal          rte_kvargs    rte_mempool   rte_pmd_e1000  rte_pmd_virtio       rte_ring
+ 	rte_cfgfile  rte_hash         rte_lpm       rte_meter     rte_pmd_i40e   rte_pmd_vmxnet3_uio  rte_sched
+ 	rte_cmdline  rte_ip_frag      rte_pipeline  rte_pmd_ixgbe rte_port       rte_table

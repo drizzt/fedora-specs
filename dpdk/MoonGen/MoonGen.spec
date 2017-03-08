@@ -25,10 +25,6 @@ Patch10:	libmoon-remove-kni.patch
 # add support for libjemalloc.so.2
 Patch11:	https://github.com/libmoon/libmoon/commit/86b401bcd17bb9124d1cc6a2dd13aec45c00da1c.patch
 
-## Patches for MoonGen/libmoon/dpdk
-# Fix for kernel 4.8 and kernel 4.9
-Patch20:	https://github.com/emmericp/dpdk/commit/570ac8b27a27e7c5163ef2cd96984078007fac52.patch
-
 BuildRequires:	cmake
 Requires:	jemalloc
 
@@ -49,8 +45,6 @@ It also features precise and accurate timestamping and rate control.
 cd libmoon
 %patch10 -p1
 %patch11 -p1
-cd deps/dpdk
-%patch20 -p1
 
 %build
 setconf()

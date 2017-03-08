@@ -1,0 +1,29 @@
+From a1caa16eb8d0b72d4648703fe21424ffe7e67869 Mon Sep 17 00:00:00 2001
+Message-Id: <a1caa16eb8d0b72d4648703fe21424ffe7e67869.1488969988.git.tredaelli@redhat.com>
+From: Timothy Redaelli <tredaelli@redhat.com>
+Date: Wed, 8 Mar 2017 11:45:55 +0100
+Subject: [PATCH] Add the possibility to build without SSE4 support
+
+Just append -DRAIBLOCKS_WITH_SSE4:BOOL=OFF to cmake command line
+---
+ CMakeLists.txt | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index baad61c..6f9b6f8 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -12,8 +12,9 @@ if (WIN32)
+ 	set (PLATFORM_COMPILE_FLAGS "-DBOOST_SPIRIT_THREADSAFE -D_WIN32_WINNT=0x0600 -DWINVER=0x0600 -DWIN32_LEAN_AND_MEAN -DMINIUPNP_STATICLIB")
+ 	set (BLAKE2_IMPLEMENTATION "blake2/blake2b.c")
+ else (WIN32)
++	set (RAIBLOCKS_WITH_SSE4 ON CACHE BOOL "")
+ 	set (PLATFORM_COMPILE_FLAGS "-DBOOST_SPIRIT_THREADSAFE -Werror=switch -fPIC")
+-	IF (CMAKE_SYSTEM_PROCESSOR MATCHES "^(i.86|x86(_64)?)$")
++	IF (CMAKE_SYSTEM_PROCESSOR MATCHES "^(i.86|x86(_64)?)$" AND RAIBLOCKS_WITH_SSE4)
+ 		set (PLATFORM_COMPILE_FLAGS "${PLATFORM_COMPILE_FLAGS} -msse4")
+ 		set (BLAKE2_IMPLEMENTATION "blake2/blake2b.c")
+ 	else()
+-- 
+2.9.3
+

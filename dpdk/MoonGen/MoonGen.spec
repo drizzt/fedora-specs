@@ -28,6 +28,8 @@ Patch11:	https://github.com/libmoon/libmoon/commit/86b401bcd17bb9124d1cc6a2dd13a
 BuildRequires:	cmake
 Requires:	jemalloc
 
+ExclusiveArch:	x86_64
+
 %define dpdk_machine native
 %define dpdk_target x86_64-%{dpdk_machine}-linuxapp-gcc
 

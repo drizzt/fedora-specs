@@ -7,7 +7,7 @@
 Name:		MoonGen
 Version:	0
 Release:	1.%{snapshot}.%{snap_git}%{?dist}
-Summary:	high-speed packet generator built on DPDK and LuaJIT
+Summary:	High-speed packet generator built on DPDK and LuaJIT
 
 #Group:		
 License:	MIT
@@ -15,42 +15,52 @@ URL:		https://github.com/emmericp/MoonGen
 Source0:	%{name}-%{snap_git}.tar.gz
 Source1:	moongen-snapshot.sh
 
+## Patches for MoonGen
 # Fix lua path (needs to be fixed and sent upstream)
-Patch0:         fix-lua-path.patch
-# Remove kni support (consider to send a conditional patch upstream)
-Patch2:         libmoon-remove-kni.patch
-# Fix for kernel 4.8 and kernel 4.9
-Patch3:		https://github.com/emmericp/dpdk/commit/570ac8b27a27e7c5163ef2cd96984078007fac52.patch
+Patch0:		fix-lua-path.patch
 
-BuildRequires:  cmake
+## Patches for MoonGen/libmoon
+# Remove kni support (consider to send a conditional patch upstream)
+Patch10:	libmoon-remove-kni.patch
+# add support for libjemalloc.so.2
+Patch11:	https://github.com/libmoon/libmoon/commit/86b401bcd17bb9124d1cc6a2dd13aec45c00da1c.patch
+
+## Patches for MoonGen/libmoon/dpdk
+# Fix for kernel 4.8 and kernel 4.9
+Patch20:	https://github.com/emmericp/dpdk/commit/570ac8b27a27e7c5163ef2cd96984078007fac52.patch
+
+BuildRequires:	cmake
+Requires:	jemalloc
 
 %define dpdk_machine native
 %define dpdk_target x86_64-%{dpdk_machine}-linuxapp-gcc
 
 %description
-MoonGen is a fully scriptable high-speed packet generator built on DPDK and LuaJIT.
-It can saturate a 10 Gbit/s connection with 64 byte packets on a single CPU core
-while executing user-provided Lua scripts for each packet.
+MoonGen is a fully scriptable high-speed packet generator built on
+DPDK and LuaJIT.
+It can saturate a 10 Gbit/s connection with 64 byte packets on a single CPU
+core while executing user-provided Lua scripts for each packet.
 Multi-core support allows for even higher rates.
 It also features precise and accurate timestamping and rate control. 
 
 %prep
-%setup -n %name-%snap_git
+%setup -q -n %name-%snap_git
 %patch0 -p1
 cd libmoon
-%patch2 -p1
+%patch10 -p1
+%patch11 -p1
 cd deps/dpdk
-%patch3 -p1
+%patch20 -p1
 
 %build
-function setconf()
+setconf()
 {
-    cf=%{dpdk_target}/.config
-    if grep -q ^$1= $cf; then
-        sed -i "s:^$1=.*$:$1=$2:g" $cf
-    else
-        echo $1=$2 >> $cf
-    fi
+	cf=%{dpdk_target}/.config
+	if grep -q "^$1=" $cf; then
+		sed -i "s:^$1=.*$:$1=$2:g" $cf
+	else
+		echo "$1=$2" >> $cf
+	fi
 }
 # In case dpdk-devel is installed
 unset RTE_SDK RTE_INCLUDE RTE_TARGET
@@ -77,10 +87,15 @@ cd build
 make %{?_smp_mflags}
 
 %install
-install -m 755 -d %{buildroot}/%{_bindir}
-install -m 755 -D build/%{name} %{buildroot}/%{_bindir}/%{name}
+install -m 755 -d %{buildroot}/%{_datadir}/%{name}/deps/pciids
+install -m 644 -D libmoon/deps/pciids/pci.ids \
+	%{buildroot}/%{_datadir}/%{name}/deps/pciids
+
 install -m 755 -d %{buildroot}/%{_datadir}/%{name}/lua
 cp -r lua/* libmoon/lua/* %{buildroot}/%{_datadir}/%{name}/lua
+
+install -m 755 -d %{buildroot}/%{_bindir}
+install -m 755 -D build/%{name} %{buildroot}/%{_bindir}/%{name}
 
 %check
 ctest -V %{?_smp_mflags}
@@ -88,6 +103,7 @@ ctest -V %{?_smp_mflags}
 %files
 %license LICENSE
 %doc README.md examples
+%{_datadir}/%{name}/deps/pciids/pci.ids
 %{_datadir}/%{name}/lua
 %{_bindir}/%{name}
 

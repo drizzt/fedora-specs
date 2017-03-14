@@ -6,7 +6,7 @@
 
 Name:		MoonGen
 Version:	0
-Release:	1.%{snapshot}.%{snap_git}%{?dist}
+Release:	2.%{snapshot}.%{snap_git}%{?dist}
 Summary:	High-speed packet generator built on DPDK and LuaJIT
 
 #Group:		
@@ -24,14 +24,42 @@ Patch0:		fix-lua-path.patch
 Patch10:	libmoon-remove-kni.patch
 # add support for libjemalloc.so.2
 Patch11:	https://github.com/libmoon/libmoon/commit/86b401bcd17bb9124d1cc6a2dd13aec45c00da1c.patch
+# Try to use system pci.ids if deps/pciids/pci.ids is not available
+Patch12:	https://patch-diff.githubusercontent.com/raw/libmoon/libmoon/pull/26.patch
 
 BuildRequires:	cmake
+BuildRequires:	luajit-devel >= 2.1.0
 Requires:	jemalloc
+Requires:	hwdata
+# Upstream didn't change ABI version
+Requires:	luajit >= 2.1.0
 
-ExclusiveArch:	x86_64
+# FIXME Avoid static linking of DPDK
+# Ripped from dpdk.spec (16.07-1)
+#
+# The DPDK is designed to optimize througput of network traffic using, among
+# other techniques, carefully crafted x86 assembly instructions.  As such it
+# currently (and likely never will) run on non-x86 platforms
+#
+ExclusiveArch: x86_64 i686
 
-%define dpdk_machine native
-%define dpdk_target x86_64-%{dpdk_machine}-linuxapp-gcc
+# machine_arch maps between rpm and dpdk arch name, often same as _target_cpu
+%define machine_arch %{_target_cpu}
+# machine_tmpl is the config template machine name, often "native"
+%define machine_tmpl native
+# machine is the actual machine name used in the dpdk make system
+%ifarch x86_64
+%define machine default
+%endif
+%ifarch i686
+%define machine atm
+%endif
+
+%define target %{machine_arch}-%{machine_tmpl}-linuxapp-gcc
+
+%define pmddir %{_libdir}/dpdk-pmds
+
+# End "Ripped from dpdk.spec"
 
 %description
 MoonGen is a fully scriptable high-speed packet generator built on
@@ -39,43 +67,62 @@ DPDK and LuaJIT.
 It can saturate a 10 Gbit/s connection with 64 byte packets on a single CPU
 core while executing user-provided Lua scripts for each packet.
 Multi-core support allows for even higher rates.
-It also features precise and accurate timestamping and rate control. 
+It also features precise and accurate timestamping and rate control.
 
 %prep
 %setup -q -n %name-%snap_git
 %patch0 -p1
+sed -i 's/x86_64-native-linuxapp-gcc/%{target}/g' CMakeLists.txt libmoon/CMakeLists.txt
+
 cd libmoon
 %patch10 -p1
 %patch11 -p1
+%patch12 -p1
 
 %build
-setconf()
-{
-	cf=%{dpdk_target}/.config
-	if grep -q "^$1=" $cf; then
-		sed -i "s:^$1=.*$:$1=$2:g" $cf
+# FIXME Avoid static linking of DPDK
+cd libmoon/deps/dpdk
+# Partially ripped from dpdk.spec (16.07)
+# set up a method for modifying the resulting .config file
+function setconf() {
+	if grep -q ^$1= %{target}/.config; then
+		sed -i "s:^$1=.*$:$1=$2:g" %{target}/.config
 	else
-		echo "$1=$2" >> $cf
+		echo $1=$2 >> %{target}/.config
 	fi
 }
-# In case dpdk-devel is installed
+
+# In case dpdk-devel is installed, we should ignore its hints about the SDK directories
 unset RTE_SDK RTE_INCLUDE RTE_TARGET
 
-# See build.sh
-cd libmoon/deps/luajit
-make %{?_smp_mflags} BUILDMODE=static 'CFLAGS+=-DLUAJIT_NUMMODE=2 -DLUAJIT_ENABLE_LUA52COMPAT'
-make install DESTDIR=$(pwd)
-cd ->/dev/null
+# Avoid appending second -Wall to everything, it breaks upstream warning
+# disablers in makefiles. Strip expclit -march= from optflags since they
+# will only guarantee build failures, DPDK is picky with that.
+export EXTRA_CFLAGS="$(echo %{optflags} | sed -e 's:-Wall::g' -e 's:-march=[[:alnum:]]* ::g') -Wformat -fPIC"
 
-cd libmoon/deps/dpdk
-make V=1 O=%{dpdk_target} T=%{dpdk_target} %{?_smp_mflags} config
+# DPDK defaults to using builder-specific compiler flags.  However,
+# the config has been changed by specifying CONFIG_RTE_MACHINE=default
+# in order to build for a more generic host.  NOTE: It is possible that
+# the compiler flags used still won't work for all Fedora-supported
+# machines, but runtime checks in DPDK will catch those situations.
 
-# Disable kernel modules
+make V=1 O=%{target} T=%{target} config
+
+setconf CONFIG_RTE_MACHINE '"%{machine}"'
+# Disable experimental features
+setconf CONFIG_RTE_NEXT_ABI n
+setconf CONFIG_RTE_LIBRTE_CRYPTODEV n
+setconf CONFIG_RTE_LIBRTE_MBUF_OFFLOAD n
+
 setconf CONFIG_RTE_EAL_IGB_UIO n
 setconf CONFIG_RTE_LIBRTE_KNI n
 setconf CONFIG_RTE_KNI_KMOD n
+setconf CONFIG_RTE_KNI_PREEMPT_DEFAULT n
 
-make V=1 O=%{dpdk_target} %{?_smp_mflags}
+make V=1 O=%{target}
+
+# End "Partially ripped from dpdk.spec (16.07)"
+
 cd ->/dev/null
 
 cd build
@@ -83,10 +130,6 @@ cd build
 make %{?_smp_mflags}
 
 %install
-install -m 755 -d %{buildroot}/%{_datadir}/%{name}/deps/pciids
-install -m 644 -D libmoon/deps/pciids/pci.ids \
-	%{buildroot}/%{_datadir}/%{name}/deps/pciids
-
 install -m 755 -d %{buildroot}/%{_datadir}/%{name}/lua
 cp -r lua/* libmoon/lua/* %{buildroot}/%{_datadir}/%{name}/lua
 
@@ -99,10 +142,16 @@ ctest -V %{?_smp_mflags}
 %files
 %license LICENSE
 %doc README.md examples
-%{_datadir}/%{name}/deps/pciids/pci.ids
 %{_datadir}/%{name}/lua
 %{_bindir}/%{name}
 
 %changelog
+* Tue Mar 14 2017 Timothy Redaelli <tredaelli@redhat.com> - 0-2.20170124.ef3aa3f7
+- Build only for i686 and x86_64
+- Use configuration from upstream Fedora dpdk.spec
+- Do not statically link with LuaJIT
+- Use /usr/share/hwdata/pci.ids
+- Build DPDK without specifying -j (sometimes it doesn't work correctly)
+
 * Tue Mar 07 2017 Timothy Redaelli <tredaelli@redhat.com> - 0-1.20170124.ef3aa3f7
 - Initial package

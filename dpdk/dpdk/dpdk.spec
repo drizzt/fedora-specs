@@ -7,7 +7,7 @@
 
 # Dont edit Version: and Release: directly, only these:
 %define ver 16.11.1
-%define rel 1
+%define rel 2
 # Define when building git snapshots
 #define snapver 2086.git263333bb
 
@@ -203,24 +203,6 @@ EOF
 # Fixup target machine mismatch
 sed -i -e 's:-%{machine}-:-default-:g' %{buildroot}/%{_sysconfdir}/profile.d/dpdk-sdk*
 
-# Upstream has an option to build a combined library but it's bloatware which
-# wont work at all when library versions start moving, replace it with a 
-# linker script which avoids these issues. Linking against the script during
-# build resolves into links to the actual used libraries which is just fine
-# for us, so this combined library is a build-time only construct now.
-%if %{with shared}
-libext=so
-%else
-libext=a
-%endif
-comblib=libdpdk.${libext}
-
-echo "GROUP (" > ${comblib}
-find %{buildroot}/%{_libdir}/ -maxdepth 1 -name "*.${libext}" |\
-	sed -e "s:^%{buildroot}/:  :g" >> ${comblib}
-echo ")" >> ${comblib}
-install -m 644 ${comblib} %{buildroot}/%{_libdir}/${comblib}
-
 %files
 # BSD
 %doc README MAINTAINERS
@@ -270,6 +252,9 @@ install -m 644 ${comblib} %{buildroot}/%{_libdir}/${comblib}
 %endif
 
 %changelog
+* Wed Mar 22 2017 Timothy Redaelli <tredaelli@redhat.com> - 16.11.1-2
+- Drop broken linker script generation, it's upstream now
+
 * Mon Mar 06 2017 Timothy Redaelli <tredaelli@redhat.com> - 16.11.1-1
 - Update to DPDK 16.11.1
 

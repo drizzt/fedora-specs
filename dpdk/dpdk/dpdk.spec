@@ -1,26 +1,18 @@
 # Add option to build as static libraries (--without shared)
 %bcond_without shared
-# Add option to build with examples
-%bcond_with examples
+# Add option to build without examples
+%bcond_without examples
 # Add option to build without tools
 %bcond_without tools
-
-# Dont edit Version: and Release: directly, only these:
-%define ver 16.11.1
-%define rel 2
-# Define when building git snapshots
-#define snapver 2086.git263333bb
-
-%define srcver %{ver}%{?snapver:-%{snapver}}
+# Add option to build the PDF documentation separately (--with pdfdoc)
+%bcond_with pdfdoc
 
 Name: dpdk
-Version: %{ver}
-Release: %{?snapver:0.%{snapver}.}%{rel}%{?dist}
+Version: 16.11.1
+Release: 0%{?dist}
 URL: http://dpdk.org
-Source: http://fast.dpdk.org/rel/dpdk-%{srcver}.tar.xz
-
-# Only needed for creating snapshot tarballs, not used in build itself
-#Source100: dpdk-snapshot.sh
+Source: http://dpdk.org/browse/dpdk/snapshot/dpdk-%{version}.tar.xz
+Patch0: test-app-libfix.patch
 
 Summary: Set of libraries and drivers for fast packet processing
 
@@ -33,20 +25,49 @@ License: BSD and LGPLv2 and GPLv2
 
 #
 # The DPDK is designed to optimize througput of network traffic using, among
-# other techniques, carefully crafted x86 assembly instructions.  As such it
-# currently (and likely never will) run on non-x86 platforms. 
-ExclusiveArch: x86_64 
+# other techniques, carefully crafted assembly instructions.  As such it
+# needs extensive work to port it to other architectures.
+#
+ExclusiveArch: x86_64 i686 aarch64 ppc64le
 
-%define machine native
-%define target x86_64-%{machine}-linuxapp-gcc
+# machine_arch maps between rpm and dpdk arch name, often same as _target_cpu
+# machine_tmpl is the config template machine name, often "native"
+# machine is the actual machine name used in the dpdk make system
+%ifarch x86_64
+%define machine_arch x86_64
+%define machine_tmpl native
+%define machine default
+%endif
+%ifarch i686
+%define machine_arch i686
+%define machine_tmpl native
+%define machine atm
+%endif
+%ifarch aarch64
+%define machine_arch arm64
+%define machine_tmpl armv8a
+%define machine armv8a
+%endif
+%ifarch ppc64le
+%define machine_arch ppc_64
+%define machine_tmpl power8
+%define machine power8
+%endif
 
-%define sdkdir  %{_datadir}/%{name}
-%define docdir  %{_docdir}/%{name}
-%define incdir  %{_includedir}/%{name}
-%define pmddir %{_libdir}/%{name}-pmds
 
-BuildRequires: kernel-headers, libpcap-devel, zlib-devel, numactl-devel
-BuildRequires: doxygen, python-sphinx
+%define target %{machine_arch}-%{machine_tmpl}-linuxapp-gcc
+
+BuildRequires: kernel-headers, libpcap-devel, doxygen, python-sphinx, zlib-devel
+BuildRequires: numactl-devel
+%if %{with pdfdoc}
+BuildRequires: texlive-dejavu inkscape texlive-latex-bin-bin
+BuildRequires: texlive-kpathsea-bin texlive-metafont-bin texlive-cm
+BuildRequires: texlive-cmap texlive-ec texlive-babel-english
+BuildRequires: texlive-fancyhdr texlive-fancybox texlive-titlesec
+BuildRequires: texlive-framed texlive-threeparttable texlive-mdwtools
+BuildRequires: texlive-wrapfig texlive-parskip texlive-upquote texlive-multirow
+BuildRequires: texlive-helvetic texlive-times texlive-dvips
+%endif
 
 %description
 The Data Plane Development Kit is a set of libraries and drivers for
@@ -73,6 +94,7 @@ API programming documentation for the Data Plane Development Kit.
 %if %{with tools}
 %package tools
 Summary: Tools for setting up Data Plane Development Kit environment
+Requires: %{name} = %{version}-%{release}
 Requires: kmod pciutils findutils iproute
 
 %description tools
@@ -89,63 +111,70 @@ Example applications utilizing the Data Plane Development Kit, such
 as L2 and L3 forwarding.
 %endif
 
+%define sdkdir  %{_datadir}/%{name}
+%define docdir  %{_docdir}/%{name}
+%define incdir %{_includedir}/%{name}
+%define pmddir %{_libdir}/%{name}-pmds
+
 %prep
-%setup -q -n %{name}-stable-%{srcver}
+%setup -q -n %{name}-stable-%{version}
+%patch0 -p1
 
 %build
-function setconf()
-{
-    cf=%{target}/.config
-    if grep -q ^$1= $cf; then
-        sed -i "s:^$1=.*$:$1=$2:g" $cf
-    else
-        echo $1=$2 >> $cf
-    fi
+# set up a method for modifying the resulting .config file
+function setconf() {
+	if grep -q ^$1= %{target}/.config; then
+		sed -i "s:^$1=.*$:$1=$2:g" %{target}/.config
+	else
+		echo $1=$2 >> %{target}/.config
+	fi
 }
-# In case dpdk-devel is installed
+
+# In case dpdk-devel is installed, we should ignore its hints about the SDK directories
 unset RTE_SDK RTE_INCLUDE RTE_TARGET
 
-# Avoid appending second -Wall to everything, it breaks hand-picked
-# disablers like per-file -Wno-strict-aliasing
-export EXTRA_CFLAGS="`echo %{optflags} | sed -e 's:-Wall::g'` -Wformat -fPIC"
+# Avoid appending second -Wall to everything, it breaks upstream warning
+# disablers in makefiles. Strip expclit -march= from optflags since they
+# will only guarantee build failures, DPDK is picky with that.
+export EXTRA_CFLAGS="$(echo %{optflags} | sed -e 's:-Wall::g' -e 's:-march=[[:alnum:]]* ::g') -Wformat -fPIC"
+
+# DPDK defaults to using builder-specific compiler flags.  However,
+# the config has been changed by specifying CONFIG_RTE_MACHINE=default
+# in order to build for a more generic host.  NOTE: It is possible that
+# the compiler flags used still won't work for all Fedora-supported
+# machines, but runtime checks in DPDK will catch those situations.
 
 make V=1 O=%{target} T=%{target} %{?_smp_mflags} config
 
-# DPDK defaults to optimizing for the builder host we need generic binaries
-setconf CONFIG_RTE_MACHINE '"default"'
-setconf CONFIG_RTE_SCHED_VECTOR n
+setconf CONFIG_RTE_MACHINE '"%{machine}"'
+# Disable experimental features
+setconf CONFIG_RTE_NEXT_ABI n
+setconf CONFIG_RTE_LIBRTE_CRYPTODEV n
+setconf CONFIG_RTE_LIBRTE_MBUF_OFFLOAD n
+# Disable unmaintained features
+setconf CONFIG_RTE_LIBRTE_POWER n
 
 # Enable automatic driver loading from this path
 setconf CONFIG_RTE_EAL_PMD_PATH '"%{pmddir}"'
 
-# Enable pcap and vhost-numa build, the added deps are ok for us
+setconf CONFIG_RTE_LIBRTE_BNX2X_PMD y
 setconf CONFIG_RTE_LIBRTE_PMD_PCAP y
 setconf CONFIG_RTE_LIBRTE_VHOST_NUMA y
-# Disable unstable driver(s)
-setconf CONFIG_RTE_LIBRTE_BNX2X_PMD n
+
+setconf CONFIG_RTE_EAL_IGB_UIO n
+setconf CONFIG_RTE_LIBRTE_KNI n
+setconf CONFIG_RTE_KNI_KMOD n
+setconf CONFIG_RTE_KNI_PREEMPT_DEFAULT n
 
 %if %{with shared}
 setconf CONFIG_RTE_BUILD_SHARED_LIB y
 %endif
+#%ifarch ppc64le
+#setconf CONFIG_RTE_LIBRTE_PMD_RING n
+#%endif
 
-# Disable kernel modules
-setconf CONFIG_RTE_EAL_IGB_UIO n
-setconf CONFIG_RTE_LIBRTE_KNI n
-setconf CONFIG_RTE_KNI_KMOD n
-
-# Disable experimental and ABI-breaking code
-setconf CONFIG_RTE_NEXT_ABI n
-
-# Disable some PMDs on fdProd
-setconf CONFIG_RTE_LIBRTE_BNXT_PMD n
-setconf CONFIG_RTE_LIBRTE_ENA_PMD n
-setconf CONFIG_RTE_LIBRTE_PMD_NULL_CRYPTO n
-setconf CONFIG_RTE_LIBRTE_QEDE_PMD n
-
-make V=1 O=%{target} %{?_smp_mflags} 
-
-# Creating PDF's has excessive build-requirements, html docs suffice fine
-make V=1 O=%{target} %{?_smp_mflags} doc-api-html doc-guides-html
+make V=1 O=%{target} %{?_smp_mflags}
+make V=1 O=%{target} %{?_smp_mflags} doc-api-html doc-guides-html %{?with_pdfdoc: guides-pdf}
 
 %if %{with examples}
 make V=1 O=%{target}/examples T=%{target} %{?_smp_mflags} examples
@@ -157,18 +186,9 @@ unset RTE_SDK RTE_INCLUDE RTE_TARGET
 
 %make_install O=%{target} prefix=%{_usr} libdir=%{_libdir}
 
-# Create a driver directory with symlinks to all pmds
-mkdir -p %{buildroot}/%{pmddir}
-%if %{with shared}
-for f in %{buildroot}/%{_libdir}/*_pmd_*.so.*; do
-    bn=$(basename ${f})
-    ln -s ../${bn} %{buildroot}%{pmddir}/${bn}
-done
-%endif
-
 %if ! %{with tools}
 rm -rf %{buildroot}%{sdkdir}/tools
-rm -rf %{buildroot}%{_sbindir}/dpdk-devbind
+rm -rf %{buildroot}%{_sbindir}/dpdk_nic_bind
 %endif
 rm -f %{buildroot}%{sdkdir}/tools/setup.sh
 
@@ -176,11 +196,16 @@ rm -f %{buildroot}%{sdkdir}/tools/setup.sh
 find %{target}/examples/ -name "*.map" | xargs rm -f
 for f in %{target}/examples/*/%{target}/app/*; do
     bn=`basename ${f}`
-    cp -p ${f} %{buildroot}%{_bindir}/dpdk-${bn}
+    cp -p ${f} %{buildroot}%{_bindir}/dpdk_example_${bn}
 done
-%else
-rm -rf %{buildroot}%{sdkdir}/examples
 %endif
+
+# Create a driver directory with symlinks to all pmds
+mkdir -p %{buildroot}/%{pmddir}
+for f in %{buildroot}/%{_libdir}/*_pmd_*.so; do
+    bn=$(basename ${f})
+    ln -s ../${bn} %{buildroot}%{pmddir}/${bn}
+done
 
 # Setup RTE_SDK environment as expected by apps etc
 mkdir -p %{buildroot}/%{_sysconfdir}/profile.d
@@ -201,18 +226,15 @@ endif
 EOF
 
 # Fixup target machine mismatch
-sed -i -e 's:-%{machine}-:-default-:g' %{buildroot}/%{_sysconfdir}/profile.d/dpdk-sdk*
+sed -i -e 's:-%{machine_tmpl}-:-%{machine}-:g' %{buildroot}/%{_sysconfdir}/profile.d/dpdk-sdk*
 
 %files
 # BSD
-%doc README MAINTAINERS
 %{_bindir}/testpmd
 %{_bindir}/dpdk-procinfo
-%{_bindir}/dpdk-pdump
-%dir %{pmddir}
 %if %{with shared}
 %{_libdir}/*.so.*
-%{pmddir}/*.so.*
+%{pmddir}/
 %endif
 
 %files doc
@@ -222,7 +244,7 @@ sed -i -e 's:-%{machine}-:-default-:g' %{buildroot}/%{_sysconfdir}/profile.d/dpd
 %files devel
 #BSD
 %{incdir}/
-%{sdkdir}/
+%{sdkdir}
 %if %{with tools}
 %exclude %{sdkdir}/tools/
 %endif
@@ -230,253 +252,94 @@ sed -i -e 's:-%{machine}-:-default-:g' %{buildroot}/%{_sysconfdir}/profile.d/dpd
 %exclude %{sdkdir}/examples/
 %endif
 %{_sysconfdir}/profile.d/dpdk-sdk-*.*
-%if %{with shared}
-%{_libdir}/*.so
-%else
+%if ! %{with shared}
 %{_libdir}/*.a
-%endif
-%if %{with examples}
-%files examples
-%exclude %{_bindir}/dpdk-procinfo
-%exclude %{_bindir}/dpdk-pdump
-%exclude %{_bindir}/dpdk-pmdinfo
-%{_bindir}/dpdk-*
-%doc %{sdkdir}/examples/
+%else
+%{_libdir}/*.so
 %endif
 
 %if %{with tools}
 %files tools
 %{sdkdir}/tools/
 %{_sbindir}/dpdk-devbind
+%{_bindir}/dpdk-pdump
 %{_bindir}/dpdk-pmdinfo
 %endif
 
+%if %{with examples}
+%files examples
+%{_bindir}/dpdk_example_*
+%doc %{sdkdir}/examples
+%endif
+
 %changelog
-* Wed Mar 22 2017 Timothy Redaelli <tredaelli@redhat.com> - 16.11.1-2
-- Drop broken linker script generation, it's upstream now
+* Wed Mar 22 2017 Timothy Redaelli <tredaelli@redhat.com> - 16.11.1-0
+- Update to 16.11.1
 
-* Mon Mar 06 2017 Timothy Redaelli <tredaelli@redhat.com> - 16.11.1-1
-- Update to DPDK 16.11.1
+* Mon Feb 06 2017 Yaakov Selkowitz <yselkowi@redhat.com> - 16.11-2
+- Enable aarch64, ppc64le (#1419731)
 
-* Thu Feb 02 2017 Timothy Redaelli <tredaelli@redhat.com> - 16.11-3
-- Make driverctl a different package
+* Tue Nov 15 2016 Neil Horman <nhorman@redhat.com> - 16.11-1
+- Update to 16.11
 
-* Thu Dec 08 2016 Kevin Traynor <ktraynor@redhat.com> - 16.11-2
-- Update to DPDK 16.11 (#1335865)
+* Tue Aug 02 2016 Neil Horman <nhorman@redhat.com> - 16.07-1
+* Update to 16.07
 
-* Wed Oct 05 2016 Panu Matilainen <pmatilai@redhat.com> - 16.07-1
-- Update to DPDK 16.07 (#1383195)
-- Disable unstable bnx2x driver (#1330589)
-- Enable librte_vhost NUMA support again (#1279525)
-- Enable librte_cryptodev, its no longer considered experimental
-- Change example prefix to dpdk- for consistency with other utilities
-- Update driverctl to 0.89
+* Thu Apr 14 2016 Panu Matilainen <pmatilai@redhat.com> - 16.04-1
+- Update to 16.04
+- Drop all patches, they're not needed anymore
+- Drop linker script generation, its upstream now
+- Enable vhost numa support again
 
-* Thu Jul 21 2016 Flavio Leitner <fbl@redhat.com> - 16.04-4
-- Updated to DPDK 16.04
+* Wed Mar 16 2016 Panu Matilainen <pmatilai@redhat.com> - 2.2.0-7
+- vhost numa code causes crashes, disable until upstream fixes
+- Generalize target/machine/etc macros to enable i686 builds
 
-* Wed Mar 16 2016 Panu Matilainen <pmatilai@redhat.com> - 2.2.0-3
-- Disable librte_vhost NUMA support for now, it causes segfaults
+* Tue Mar 01 2016 Panu Matilainen <pmatilai@redhat.com> - 2.2.0-6
+- Drop no longer needed bnx2x patch, the gcc false positive has been fixed
+- Drop no longer needed -Wno-error=array-bounds from CFLAGS
+- Eliminate the need for the enic patch by eliminating second -Wall from CFLAGS
+- Disable unmaintained librte_power as per upstream recommendation
 
-* Wed Jan 27 2016 Panu Matilainen <pmatilai@redhat.com> - 2.2.0-2
+* Mon Feb 15 2016 Neil Horman <nhorman@redhat.com> 2.2.0-5
+- Fix ftbfs isssue (1307431)
+
+* Wed Feb 03 2016 Fedora Release Engineering <releng@fedoraproject.org> - 2.2.0-4
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_24_Mass_Rebuild
+
+* Tue Jan 26 2016 Panu Matilainen <pmatilai@redhat.com> - 2.2.0-3
 - Use a different quoting method to avoid messing up vim syntax highlighting
 - A string is expected as CONFIG_RTE_MACHINE value, quote it too
+
+* Mon Jan 25 2016 Panu Matilainen <pmatilai@redhat.com> - 2.2.0-2
 - Enable librte_vhost NUMA-awareness
 
-* Tue Jan 12 2016 Panu Matilainen <pmatilai@redhat.com> - 2.2.0-1
-- Update DPDK to 2.2.0 final
-- Add README and MAINTAINERS docs
-- Adopt new upstream standard installation layout, including
-  dpdk_nic_bind.py renamed to dpdk_nic_bind
-- Move the unversioned pmd symlinks from libdir -devel
+* Wed Jan 20 2016 Panu Matilainen <pmatilai@redhat.com> - 2.2.0-1
+- Update to 2.2.0
 - Establish a driver directory for automatic driver loading
-- Disable CONFIG_RTE_SCHED_VECTOR, it conflicts with CONFIG_RTE_MACHINE default
-- Disable experimental cryptodev library
-- More complete dtneeded patch
+- Move the unversioned pmd symlinks from libdir -devel
 - Make option matching stricter in spec setconf
-- Update driverctl to 0.59
+- Spec cleanups
+- Adopt upstream standard installation layout
 
-* Wed Dec 09 2015 Panu Matilainen <pmatilai@redhat.com> - 2.1.0-5
-- Fix artifacts from driverctl having different version
-- Update driverctl to 0.58
+* Thu Oct 22 2015 Aaron Conole <aconole@redhat.com> - 2.1.0-3
+- Include examples binaries
+- Enable the Broadcom NetXtreme II 10Gb PMD
+- Fix up linkages for the dpdk-devel package
 
-* Fri Nov 13 2015 Panu Matilainen <pmatilai@redhat.com> - 2.1.0-4
-- Add driverctl sub-package
+* Wed Sep 30 2015 Aaron Conole <aconole@redhat.com> - 2.1.0-2
+- Re-enable the IGB, IXGBE, I40E PMDs
+- Bring the Fedora and RHEL packages more in-line.
 
-* Fri Oct 23 2015 Panu Matilainen <pmatilai@redhat.com> - 2.1.0-3
-- Enable bnx2x pmd, which buildrequires zlib-devel
+* Wed Aug 26 2015 Neil Horman <nhorman@redhat.com> - 2.1.0-1
+- Update to latest version
 
-* Mon Sep 28 2015 Panu Matilainen <pmatilai@redhat.com> - 2.1.0-2
-- Make lib and include available both ways in the SDK paths
+* Wed Jun 17 2015 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 2.0.0-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_23_Mass_Rebuild
 
-* Thu Sep 24 2015 Panu Matilainen <pmatilai@redhat.com> - 2.1.0-1
-- Update to dpdk 2.1.0 final
-  - Disable ABI_NEXT
-  - Rebase patches as necessary
-  - Fix build of ip_pipeline example
-  - Drop no longer needed -Wno-error=array-bounds
-  - Rename libintel_dpdk to libdpdk
-
-* Tue Aug 11 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-9
-- Drop main package dependency from dpdk-tools
-
-* Wed May 20 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-8
-- Drop eventfd-link patch, its only needed for vhost-cuse
-
-* Tue May 19 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-7
-- Drop pointless build conditional, the linker script is here to stay
-- Drop vhost-cuse build conditional, vhost-user is here to stay
-- Cleanup comments a bit
-- Enable parallel build again
-- Dont build examples by default
-
-* Thu Apr 30 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-6
-- Fix potential hang and thread issues with VFIO eventfd
-
-* Fri Apr 24 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-5
-- Fix a potential hang due to missed interrupt in vhost library
-
-* Tue Apr 21 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-4
-- Drop unused pre-2.0 era patches
-- Handle vhost-user/cuse selection automatically based on the copr repo name
-
-* Fri Apr 17 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-3
-- Dont depend on fuse when built for vhost-user support
-- Drop version from testpmd binary, we wont be parallel-installing that
-
-* Thu Apr 09 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-2
-- Remove the broken kmod stuff
-- Add a new dkms-based eventfd_link subpackage if vhost-cuse is enabled
-
-* Tue Apr 07 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-1
-- Update to 2.0 final (http://dpdk.org/doc/guides-2.0/rel_notes/index.html)
-
-* Thu Apr 02 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-0.2086.git263333bb.2
-- Switch (back) to vhost-user, thus disabling vhost-cuse support
-- Build requires fuse-devel for now even when fuse is unused
-
-* Mon Mar 30 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-0.2049.git2f95a470.1
-- New snapshot
-- Add spec option for enabling vhost-user instead of vhost-cuse
-- Build requires fuse-devel only with vhost-cuse
-- Add virtual provide for vhost user/cuse tracking 
-
-* Fri Mar 27 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-0.2038.git91a8743e.3
-- Disable vhost-user for now to get vhost-cuse support, argh.
-
-* Fri Mar 27 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-0.2038.git91a8743e.2
-- Add a bunch of missing dependencies to -tools
-
-* Thu Mar 26 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-0.2038.git91a8743e.1
-- Another day, another snapshot
-- Disable IVSHMEM support for now
-
-* Fri Mar 20 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-0.2022.gitfe4810a0.2
-- Dont fail build for array bounds warnings for now, gcc 5 is emitting a bunch
-
-* Fri Mar 20 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-0.2022.gitfe4810a0.1
-- Another day, another snapshot
-- Avoid building pdf docs
-
-* Tue Mar 03 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-0.1916.gita001589e.2
-- Add missing dependency to tools -subpackage
-
-* Tue Mar 03 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-0.1916.gita001589e.1
-- New snapshot
-- Work around #1198009
-
-* Mon Mar 02 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-0.1911.gitffc468ff.2
-- Optionally package tools too, some binding script is needed for many setups
-
-* Mon Mar 02 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-0.1911.gitffc468ff.1
-- New snapshot
-- Disable kernel module build by default
-- Add patch to fix missing defines/includes for external applications
-
-* Fri Feb 27 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-0.1906.git00c68563.1
-- New snapshot
-- Remove bogus devname module alias from eventfd-link module
-- Whack evenfd-link to honor RTE_KERNELDIR too
-
-* Thu Feb 26 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-0.1903.gitb67578cc.3
-- Add spec option to build kernel modules too
-- Build eventfd-link module too if kernel modules enabled
-
-* Thu Feb 26 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-0.1903.gitb67578cc.2
-- Move config changes from spec after "make config" to simplify things
-- Move config changes from dpdk-config patch to the spec
-
-* Thu Feb 19 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-0.1717.gitd3aa5274.2
-- Fix warnings tripping up build with gcc 5, remove -Wno-error
-
-* Wed Feb 18 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-0.1698.gitc07691ae.1
-- Move the unversioned .so links for plugins into main package
-- New snapshot
-
-* Wed Feb 18 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-0.1695.gitc2ce3924.3
-- Fix missing symbol export for rte_eal_iopl_init()
-- Only mention libs once in the linker script
-
-* Wed Feb 18 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-0.1695.gitc2ce3924.2
-- Fix gcc version logic to work with 5.0 too
-
-* Wed Feb 18 2015 Panu Matilainen <pmatilai@redhat.com> - 2.0.0-0.1695.gitc2ce3924.1
-- Add spec magic to easily switch between stable and snapshot versions
-- Add tarball snapshot script for reference
-- Update to pre-2.0 git snapshot
-
-* Thu Feb 12 2015 Panu Matilainen <pmatilai@redhat.com> - 1.8.0-15
-- Disable -Werror, this is not useful behavior for released versions
-
-* Wed Feb 11 2015 Panu Matilainen <pmatilai@redhat.com> - 1.8.0-14
-- Fix typo causing librte_vhost missing DT_NEEDED on fuse
-
-* Wed Feb 11 2015 Panu Matilainen <pmatilai@redhat.com> - 1.8.0-13
-- Fix vhost library linkage
-- Add spec option to build example applications, enable by default
-
-* Fri Feb 06 2015 Panu Matilainen <pmatilai@redhat.com> - 1.8.0-12
-- Enable librte_acl build
-- Enable librte_ivshmem build
-
-* Thu Feb 05 2015 Panu Matilainen <pmatilai@redhat.com> - 1.8.0-11
-- Drop the private libdir, not needed with versioned libs
-
-* Thu Feb 05 2015 Panu Matilainen <pmatilai@redhat.com> - 1.8.0-10
-- Drop symbol versioning patches, always do library version for shared
-- Add comment on the combined library thing
-
-* Wed Feb 04 2015 Panu Matilainen <pmatilai@redhat.com> - 1.8.0-9
-- Add missing symbol version to librte_cmdline
-
-* Tue Feb 03 2015 Panu Matilainen <pmatilai@redhat.com> - 1.8.0-8
-- Set soname of the shared libraries
-- Fixup typo in ld path config file name
-
-* Tue Feb 03 2015 Panu Matilainen <pmatilai@redhat.com> - 1.8.0-7
-- Add library versioning patches as another build option, enable by default
-
-* Tue Feb 03 2015 Panu Matilainen <pmatilai@redhat.com> - 1.8.0-6
-- Add our libraries to ld path & run ldconfig when using shared libs
-
-* Fri Jan 30 2015 Panu Matilainen <pmatilai@redhat.com> - 1.8.0-5
-- Add DT_NEEDED for external dependencies (pcap, fuse, dl, pthread)
-- Enable combined library creation, needed for OVS
-- Enable shared library creation, needed for sanity
-
-* Thu Jan 29 2015 Panu Matilainen <pmatilai@redhat.com> - 1.8.0-4
-- Include scripts directory in the "sdk" too
-
-* Thu Jan 29 2015 Panu Matilainen <pmatilai@redhat.com> - 1.8.0-3
-- Fix -Wformat clash preventing i40e driver build, enable it
-- Fix -Wall clash preventing enic driver build, enable it
-
-* Thu Jan 29 2015 Panu Matilainen <pmatilai@redhat.com> - 1.8.0-2
-- Enable librte_vhost, which buildrequires fuse-devel
-- Enable physical NIC drivers that build (e1000, ixgbe) for VFIO use
-
-* Thu Jan 29 2015 Panu Matilainen <pmatilai@redhat.com> - 1.8.0-1
-- Update to 1.8.0
+* Mon Apr 06 2015 Neil Horman <nhorman@redhat.com> - 2.0.0-1
+- Update to dpdk 2.0
+- converted --with shared option to --without shared option
 
 * Wed Jan 28 2015 Panu Matilainen <pmatilai@redhat.com> - 1.7.0-8
 - Always build with -fPIC

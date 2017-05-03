@@ -8,7 +8,7 @@
 %define boost_components	atomic chrono filesystem log program_options regex system thread
 
 Name:		raiblocks
-Version:	7.8.2
+Version:	7.8.4
 Release:	1%{?dist}
 Summary:	A low latency, high throughput cryptocurrency
 
@@ -21,6 +21,7 @@ Source3:	https://github.com/miniupnp/miniupnp/archive/%{miniupnp_commit}.tar.gz
 
 Patch0:		no_static_libs.patch
 Patch1:		0001-Add-the-possibility-to-build-without-SSE4-support.patch
+Patch2:		0001-Fix-build-on-linux-i686.patch
 
 BuildRequires:	cmake
 

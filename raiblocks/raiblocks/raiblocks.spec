@@ -1,14 +1,14 @@
 # To disable GUI support, specify '--without gui' when building
 %bcond_without gui
 
-%define beast_commit		9f10b11eff58aeb793b673c8a8cb6e2bee3db621
-%define miniupnp_commit		859b9863854244fdb7eb65f9c185df4e8fe71dc0
+%define beast_commit		663c275fc16c2b5e075b96bbe91467f83256df5c
+%define miniupnp_commit		5923d5de6ffd7960b9362f46735cbb0a6b738adf
 
 %define boost_version		1_63_0
 %define boost_components	atomic chrono filesystem log program_options regex system thread
 
 Name:		raiblocks
-Version:	7.8.4
+Version:	7.8.5
 Release:	1%{?dist}
 Summary:	A low latency, high throughput cryptocurrency
 

@@ -1,5 +1,5 @@
-From 690d773da991ea5814dbb3882d6e001db60d7419 Mon Sep 17 00:00:00 2001
-Message-Id: <690d773da991ea5814dbb3882d6e001db60d7419.1488983724.git.tredaelli@redhat.com>
+From 54e569504047e6e5ab0ca296b0e1b6ec21de0fc7 Mon Sep 17 00:00:00 2001
+Message-Id: <54e569504047e6e5ab0ca296b0e1b6ec21de0fc7.1496132901.git.tredaelli@redhat.com>
 From: Timothy Redaelli <tredaelli@redhat.com>
 Date: Wed, 8 Mar 2017 15:31:32 +0100
 Subject: [PATCH] Fix build on linux i686
@@ -11,10 +11,10 @@ used in some includes files used by non-cryptopp targets
  1 file changed, 3 insertions(+), 1 deletion(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index baad61c..14134d2 100644
+index 339cb04..bb9a63b 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -21,6 +21,8 @@ else (WIN32)
+@@ -26,6 +26,8 @@ else (WIN32)
  	endif()
  endif (WIN32)
  
@@ -23,8 +23,8 @@ index baad61c..14134d2 100644
  if (WIN32)
  	set (PLATFORM_C_FLAGS "/std=c11")
  else (WIN32)
-@@ -268,7 +270,7 @@ add_executable (rai_node
- SET (ACTIVE_NETWORK rai_active_network CACHE STRING "Selects which network parameters are used")
+@@ -273,7 +275,7 @@ add_executable (rai_node
+ SET (ACTIVE_NETWORK rai_live_network CACHE STRING "Selects which network parameters are used")
  set_property (CACHE ACTIVE_NETWORK PROPERTY STRINGS rai_test_network rai_beta_network rai_live_network)
  
 -set_target_properties (cryptopp PROPERTIES COMPILE_FLAGS "-DCRYPTOPP_DISABLE_ASM")
@@ -33,5 +33,5 @@ index baad61c..14134d2 100644
  set_target_properties (blake2 PROPERTIES COMPILE_FLAGS "${PLATFORM_C_FLAGS} ${PLATFORM_COMPILE_FLAGS} -D__SSE2__")
  set_target_properties (ed25519 PROPERTIES COMPILE_FLAGS "${PLATFORM_C_FLAGS} ${PLATFORM_COMPILE_FLAGS} -DED25519_CUSTOMHASH -DED25519_CUSTOMRNG")
 -- 
-2.9.3
+2.9.4
 

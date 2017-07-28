@@ -1,17 +1,20 @@
 Name:		pktgen-dpdk
-Version:	3.1.2
-Release:	1%{?dist}
+Version:	3.3.8
+Release:	0%{?dist}
 Summary:	Traffic generator utilizing DPDK
 
 Group:		Applications/Internet
 License:	BSD (??)
 URL:		https://github.com/Pktgen/Pktgen-DPDK/
-Source:	http://dpdk.org/browse/apps/pktgen-dpdk/snapshot/pktgen-%{version}.tar.gz
+Source:	        http://dpdk.org/browse/apps/pktgen-dpdk/snapshot/pktgen-%{version}.tar.gz
+Patch1:         fix-dpdk-version.patch
 
 BuildRequires:	dpdk-devel >= 16.04
 # bogus deps due to makefile confusion over static linkage and whatnot
 BuildRequires:	libpcap-devel zlib-devel numactl-devel
 BuildRequires:	openssl-devel
+
+BuildRequires:  python-sphinx
 
 # The tarball contains two bundled 'n hacked up Lua versions, sigh.
 # There are at least two additions to upstream: lua_shell and lua-socket
@@ -26,7 +29,7 @@ BuildConflicts: lua-devel
 %{summary}
 
 %prep
-%setup -q -n pktgen-%{version}
+%autosetup -n pktgen-%{version} -p1
 
 %build
 unset RTE_SDK
@@ -46,23 +49,32 @@ export EXTRA_CFLAGS="$(echo %{optflags} -Wno-error | sed -e 's:-march=[[:alnum:]
 # make V=1 %{?_smp_mflags}
 make V=1 CONFIG_RTE_BUILD_SHARED_LIB=n
 
+make -C docs/ V=1 man
+
 %install
 # No working "install" target, lets do it manually (sigh)
 mkdir -p %{buildroot}%{_bindir}
 mkdir -p %{buildroot}%{_libdir}/%{name}
-install -m 755 app/app/${RTE_TARGET}/pktgen %{buildroot}%{_bindir}/pktgen
+mkdir -p %{buildroot}%{_mandir}/%{name}/man1
+install -m 755 app/${RTE_TARGET}/pktgen %{buildroot}%{_bindir}/pktgen
 for f in Pktgen.lua PktgenGUI.lua; do
    install -m 644 ${f} %{buildroot}%{_libdir}/%{name}/${f}
 done
+install -m 644 docs/build/man/pktgen.1 %{buildroot}%{_mandir}/%{name}/man1/pktgen.1
 
 %files
-%license LICENSE docs/Pktgen_3rdPartyNotices_v1.0.pdf
+%license LICENSE
 %doc README.md
 %doc pcap themes test
 %{_bindir}/pktgen
 %{_libdir}/%{name}
+%{_mandir}/%{name}
 
 %changelog
+* Fri Jul 28 2017 Timothy Redaelli <tredaelli@redhat.com> - 3.3.8-0
+- Update to 3.3.8
+- Build manpage
+
 * Fri Mar 03 2017 Flavio Leitner <fbl@redhat.com> - 3.1.2-1
 - Update to 3.1.2
 

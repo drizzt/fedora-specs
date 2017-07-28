@@ -13,6 +13,7 @@ Release: 0%{?dist}
 URL: http://dpdk.org
 Source: http://fast.dpdk.org/rel/dpdk-%{version}.tar.xz
 Patch1: lengthfix.patch
+Patch2: ethdev-add-missing-symbol-in-map.patch
 
 Summary: Set of libraries and drivers for fast packet processing
 
@@ -119,6 +120,7 @@ as L2 and L3 forwarding.
 %prep
 %setup -q -n %{name}-stable-%{version}
 %patch1 -p1 -b .lengthfix
+%patch2 -p1
 
 %build
 # set up a method for modifying the resulting .config file

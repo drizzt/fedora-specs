@@ -56,7 +56,11 @@ make -C docs/ V=1 man
 mkdir -p %{buildroot}%{_bindir}
 mkdir -p %{buildroot}%{_libdir}/%{name}
 mkdir -p %{buildroot}%{_mandir}/%{name}/man1
-install -m 755 app/${RTE_TARGET}/pktgen %{buildroot}%{_bindir}/pktgen
+if [ -f app/${RTE_TARGET}/pktgen ]; then
+  install -m 755 app/${RTE_TARGET}/pktgen %{buildroot}%{_bindir}/pktgen
+else
+  install -m 755 app/app/${RTE_TARGET}/pktgen %{buildroot}%{_bindir}/pktgen
+fi
 for f in Pktgen.lua PktgenGUI.lua; do
    install -m 644 ${f} %{buildroot}%{_libdir}/%{name}/${f}
 done

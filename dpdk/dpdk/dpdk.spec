@@ -9,7 +9,7 @@
 
 Name: dpdk
 Version: 17.05.1
-Release: 0%{?dist}
+Release: 0.1%{?dist}
 URL: http://dpdk.org
 Source: http://fast.dpdk.org/rel/dpdk-%{version}.tar.xz
 Patch1: lengthfix.patch

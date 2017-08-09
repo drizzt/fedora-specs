@@ -1,6 +1,6 @@
 Name:		pktgen-dpdk
 Version:	3.3.8
-Release:	0%{?dist}
+Release:	0.1%{?dist}
 Summary:	Traffic generator utilizing DPDK
 
 Group:		Applications/Internet

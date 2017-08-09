@@ -8,12 +8,11 @@
 %bcond_with pdfdoc
 
 Name: dpdk
-Version: 17.05.1
-Release: 0.1%{?dist}
+Version: 17.08
+Release: 0%{?dist}
 URL: http://dpdk.org
 Source: http://fast.dpdk.org/rel/dpdk-%{version}.tar.xz
 Patch1: lengthfix.patch
-Patch2: ethdev-add-missing-symbol-in-map.patch
 
 Summary: Set of libraries and drivers for fast packet processing
 
@@ -118,9 +117,8 @@ as L2 and L3 forwarding.
 %define pmddir %{_libdir}/%{name}-pmds
 
 %prep
-%setup -q -n %{name}-stable-%{version}
+%setup -q
 %patch1 -p1 -b .lengthfix
-%patch2 -p1
 
 %build
 # set up a method for modifying the resulting .config file
@@ -188,6 +186,7 @@ unset RTE_SDK RTE_INCLUDE RTE_TARGET
 rm -rf %{buildroot}%{sdkdir}/devtools
 rm -rf %{buildroot}%{_sbindir}/dpdk_nic_bind
 rm -rf %{buildroot}%{_bindir}/dpdk-test-crypto-perf
+rm -rf %{buildroot}%{_bindir}/dpdk-test-eventdev
 %endif
 rm -f %{buildroot}%{sdkdir}/devtools/setup.sh
 
@@ -264,6 +263,7 @@ sed -i -e 's:-%{machine_tmpl}-:-%{machine}-:g' %{buildroot}/%{_sysconfdir}/profi
 %{_bindir}/dpdk-pdump
 %{_bindir}/dpdk-pmdinfo
 %{_bindir}/dpdk-test-crypto-perf
+%{_bindir}/dpdk-test-eventdev
 %endif
 
 %if %{with examples}
@@ -273,6 +273,9 @@ sed -i -e 's:-%{machine_tmpl}-:-%{machine}-:g' %{buildroot}/%{_sysconfdir}/profi
 %endif
 
 %changelog
+* Wed Aug 09 2017 Timothy Redaelli <tredaelli@redhat.com> - 17.08-0
+- Update to latest upstream
+
 * Fri Jul 14 2017 Timothy Redaelli <tredaelli@redhat.com> - 17.05.1-0
 - Update to latest upstream
 

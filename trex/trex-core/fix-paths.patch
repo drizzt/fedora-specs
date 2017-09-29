@@ -1,0 +1,43 @@
+diff --git a/scripts/t-rex-64 b/scripts/t-rex-64
+index 4fd5590d..1a3cfa80 100755
+--- a/scripts/t-rex-64
++++ b/scripts/t-rex-64
+@@ -7,6 +7,8 @@ fi
+ INPUT_ARGS=${@//[]/-} # replace bizarre minuses with normal one
+ EXTRA_INPUT_ARGS=""
+ 
++cd /usr/share/trex-core/scripts
++
+ ./trex-cfg $INPUT_ARGS
+ RESULT=$?
+ if [ $RESULT -eq 255 ]; then
+@@ -40,8 +42,6 @@ if [[ ! "$INPUT_ARGS" =~ "--help" ]]; then
+     done <<< "$($PYTHON dpdk_setup_ports.py --dump-pci-description)"
+ fi
+ 
+-cd $(dirname $0)
+-export LD_LIBRARY_PATH=$PWD
+ 
+ 
+ function restore_tty {
+@@ -55,17 +55,17 @@ fi
+ 
+ # if we have a new core run optimized trex
+ if  grep -q avx /proc/cpuinfo ; then
+-    ./_$(basename $0) $INPUT_ARGS $EXTRA_INPUT_ARGS
++    /usr/bin/_$(basename $0) $INPUT_ARGS $EXTRA_INPUT_ARGS
+     RESULT=$?
+     if [ $RESULT -eq 132 ]; then
+         echo " WARNING this program is optimized for the new Intel processors.  "
+         echo " try the ./t-rex-64-o application that should work for any Intel processor but might be slower. "
+         echo " try to run t-rex-64-o .. "
+-        ./_t-rex-64-o $INPUT_ARGS  $EXTRA_INPUT_ARGS
++        /usr/bin/_t-rex-64-o $INPUT_ARGS  $EXTRA_INPUT_ARGS
+         RESULT=$?
+     fi
+ else
+-        ./_t-rex-64-o $INPUT_ARGS $EXTRA_INPUT_ARGS
++        /usr/bin/_t-rex-64-o $INPUT_ARGS $EXTRA_INPUT_ARGS
+         RESULT=$?
+ fi
+ 

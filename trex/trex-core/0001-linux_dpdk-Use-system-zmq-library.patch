@@ -1,0 +1,43 @@
+From bb72c2ed4cd49d4accaad70b85a9b2cce55a4f42 Mon Sep 17 00:00:00 2001
+Message-Id: <bb72c2ed4cd49d4accaad70b85a9b2cce55a4f42.1506613404.git.tredaelli@redhat.com>
+From: Timothy Redaelli <tredaelli@redhat.com>
+Date: Fri, 1 Sep 2017 10:40:26 +0200
+Subject: [PATCH] linux_dpdk: Use system zmq library
+
+---
+ linux_dpdk/ws_main.py | 5 +----
+ 1 file changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/linux_dpdk/ws_main.py b/linux_dpdk/ws_main.py
+index 52eebb2c..7d2e4777 100755
+--- a/linux_dpdk/ws_main.py
++++ b/linux_dpdk/ws_main.py
+@@ -701,7 +701,6 @@ includes_path =''' ../src/pal/linux_dpdk/
+                    ../src/stateless/messaging/
+ 
+                    ../external_libs/yaml-cpp/include/
+-                   ../external_libs/zmq/include/
+                    ../external_libs/json/
+                    ../external_libs/bpf/
+ 
+@@ -1089,8 +1088,7 @@ def build(bld):
+     bld.add_post_fun(post_build);
+ 
+     # ZMQ
+-    zmq_lib_path='external_libs/zmq/'
+-    bld.read_shlib( name='zmq' , paths=[top + zmq_lib_path] )
++    bld.read_shlib( name='zmq' )
+ 
+     if bld.env.NO_MLX == False:
+         if bld.env['LIB_IBVERBS']:
+@@ -1257,7 +1255,6 @@ def copy_single_system1 (bld, exec_p, build_obj):
+ 
+ 
+ files_list=[
+-            'libzmq.so.3',
+             'trex-cfg',
+             'bp-sim-64',
+             'bp-sim-64-debug',
+-- 
+2.13.5
+

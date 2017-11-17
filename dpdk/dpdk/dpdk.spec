@@ -8,11 +8,11 @@
 %bcond_with pdfdoc
 
 Name: dpdk
-Version: 17.08
-Release: 0%{?dist}
+Version: 17.11
+Release: 0.1%{?dist}
 URL: http://dpdk.org
 Source: http://fast.dpdk.org/rel/dpdk-%{version}.tar.xz
-Patch1: lengthfix.patch
+Patch1: link-testpmd-with-virtio.patch
 
 Summary: Set of libraries and drivers for fast packet processing
 
@@ -118,7 +118,7 @@ as L2 and L3 forwarding.
 
 %prep
 %setup -q
-%patch1 -p1 -b .lengthfix
+%patch1 -p1
 
 %build
 # set up a method for modifying the resulting .config file
@@ -273,6 +273,10 @@ sed -i -e 's:-%{machine_tmpl}-:-%{machine}-:g' %{buildroot}/%{_sysconfdir}/profi
 %endif
 
 %changelog
+* Fri Nov 17 2017 Timothy Redaelli <tredaelli@redhat.com> - 17.11-0.1
+- Update to latest upstream
+- Add a patch to fix shared linking of testpmd with virtio pmd
+
 * Wed Aug 09 2017 Timothy Redaelli <tredaelli@redhat.com> - 17.08-0
 - Update to latest upstream
 

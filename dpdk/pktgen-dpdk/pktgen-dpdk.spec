@@ -1,13 +1,13 @@
 Name:		pktgen-dpdk
-Version:	3.3.8
-Release:	0.1%{?dist}
+Version:	3.4.2
+Release:	0%{?dist}
 Summary:	Traffic generator utilizing DPDK
 
 Group:		Applications/Internet
 License:	BSD (??)
 URL:		https://github.com/Pktgen/Pktgen-DPDK/
 Source:	        http://dpdk.org/browse/apps/pktgen-dpdk/snapshot/pktgen-%{version}.tar.gz
-Patch1:         fix-dpdk-version.patch
+Patch1:         include-rte_bus_pci.patch
 
 BuildRequires:	dpdk-devel >= 16.04
 # bogus deps due to makefile confusion over static linkage and whatnot
@@ -75,6 +75,9 @@ install -m 644 docs/build/man/pktgen.1 %{buildroot}%{_mandir}/%{name}/man1/pktge
 %{_mandir}/%{name}
 
 %changelog
+* Fri Nov 17 2017 Timothy Redaelli <tredaelli@redhat.com> - 3.4.2-0.1
+- Update to 3.4.2 linked with DPDK 17.11
+
 * Fri Jul 28 2017 Timothy Redaelli <tredaelli@redhat.com> - 3.3.8-0
 - Update to 3.3.8
 - Build manpage

@@ -9,10 +9,9 @@
 
 Name: dpdk
 Version: 17.11
-Release: 0.1%{?dist}
+Release: 0.3%{?dist}
 URL: http://dpdk.org
 Source: http://fast.dpdk.org/rel/dpdk-%{version}.tar.xz
-Patch1: link-testpmd-with-virtio.patch
 
 Summary: Set of libraries and drivers for fast packet processing
 
@@ -41,7 +40,7 @@ ExclusiveArch: x86_64 i686 aarch64 ppc64le
 %ifarch i686
 %define machine_arch i686
 %define machine_tmpl native
-%define machine atm
+%define machine default
 %endif
 %ifarch aarch64
 %define machine_arch arm64
@@ -118,7 +117,6 @@ as L2 and L3 forwarding.
 
 %prep
 %setup -q
-%patch1 -p1
 
 %build
 # set up a method for modifying the resulting .config file
@@ -183,12 +181,12 @@ unset RTE_SDK RTE_INCLUDE RTE_TARGET
 %make_install O=%{target} prefix=%{_usr} libdir=%{_libdir}
 
 %if ! %{with tools}
-rm -rf %{buildroot}%{sdkdir}/devtools
+rm -rf %{buildroot}%{sdkdir}/usertools
 rm -rf %{buildroot}%{_sbindir}/dpdk_nic_bind
 rm -rf %{buildroot}%{_bindir}/dpdk-test-crypto-perf
 rm -rf %{buildroot}%{_bindir}/dpdk-test-eventdev
 %endif
-rm -f %{buildroot}%{sdkdir}/devtools/setup.sh
+rm -f %{buildroot}%{sdkdir}/tools/setup.sh
 
 %if %{with examples}
 find %{target}/examples/ -name "*.map" | xargs rm -f
@@ -200,7 +198,7 @@ done
 
 # Create a driver directory with symlinks to all pmds
 mkdir -p %{buildroot}/%{pmddir}
-for f in %{buildroot}/%{_libdir}/*_pmd_*.so; do
+for f in %{buildroot}/%{_libdir}/*_pmd_*.so.*; do
     bn=$(basename ${f})
     ln -s ../${bn} %{buildroot}%{pmddir}/${bn}
 done
@@ -244,7 +242,7 @@ sed -i -e 's:-%{machine_tmpl}-:-%{machine}-:g' %{buildroot}/%{_sysconfdir}/profi
 %{incdir}/
 %{sdkdir}
 %if %{with tools}
-%exclude %{sdkdir}/devtools/
+%exclude %{sdkdir}/usertools/
 %endif
 %if %{with examples}
 %exclude %{sdkdir}/examples/
@@ -258,7 +256,7 @@ sed -i -e 's:-%{machine_tmpl}-:-%{machine}-:g' %{buildroot}/%{_sysconfdir}/profi
 
 %if %{with tools}
 %files tools
-#%{sdkdir}/devtools/
+%{sdkdir}/usertools/
 %{_sbindir}/dpdk-devbind
 %{_bindir}/dpdk-pdump
 %{_bindir}/dpdk-pmdinfo
@@ -273,6 +271,9 @@ sed -i -e 's:-%{machine_tmpl}-:-%{machine}-:g' %{buildroot}/%{_sysconfdir}/profi
 %endif
 
 %changelog
+* Tue Nov 21 2017 Timothy Redaelli <tredaelli@redhat.com> - 17.11-0.2
+- Install usertools in dpdk-tools
+
 * Fri Nov 17 2017 Timothy Redaelli <tredaelli@redhat.com> - 17.11-0.1
 - Update to latest upstream
 - Add a patch to fix shared linking of testpmd with virtio pmd

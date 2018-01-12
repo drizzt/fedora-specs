@@ -1,5 +1,7 @@
+%define luaver 5.3.4
+
 Name:		pktgen-dpdk
-Version:	3.4.2
+Version:	3.4.8
 Release:	0%{?dist}
 Summary:	Traffic generator utilizing DPDK
 
@@ -7,7 +9,7 @@ Group:		Applications/Internet
 License:	BSD (??)
 URL:		https://github.com/Pktgen/Pktgen-DPDK/
 Source:	        http://dpdk.org/browse/apps/pktgen-dpdk/snapshot/pktgen-%{version}.tar.gz
-Patch1:         include-rte_bus_pci.patch
+Source1:        https://www.lua.org/ftp/lua-%{luaver}.tar.gz
 
 BuildRequires:	dpdk-devel >= 16.04
 # bogus deps due to makefile confusion over static linkage and whatnot
@@ -21,7 +23,7 @@ BuildRequires:  python-sphinx
 # so a simple rm -rf of the directory wont cut it. Needs to be
 # unbundled or exception requested.
 # This is the one that gets built and statically linked in the binary:
-Provides:	bundled(lua) = 5.3.3
+Provides:	bundled(lua) = %{luaver}
 # It also conflicts with system-wide installation of lua-devel, sigh.
 BuildConflicts: lua-devel
 
@@ -35,11 +37,13 @@ BuildConflicts: lua-devel
 unset RTE_SDK
 . /etc/profile.d/dpdk-sdk-%{_arch}.sh
 
+ln -s %{SOURCE1} lib/lua
+make -C lib/lua get_tarball
+
 # Hack up Lua library path to our private libdir
-lua="lua"
-sed -ie 's:/usr/local:%{_libdir}:g' lib/${lua}/src/luaconf.h
-sed -ie 's:share/lua/.*:/%{name}/":g' lib/${lua}/src/luaconf.h
-sed -ie 's:lib/lua/.*:/%{name}/":g' lib/${lua}/src/luaconf.h
+sed -ie 's:/usr/local:%{_libdir}:g' lib/lua/lua-%{luaver}/src/luaconf.h
+sed -ie 's:share/lua/.*:/%{name}/":g' lib/lua/lua-%{luaver}/src/luaconf.h
+sed -ie 's:lib/lua/.*:/%{name}/":g' lib/lua/lua-%{luaver}/src/luaconf.h
 
 # Doesn't build with the default -Werror, sigh...
 export EXTRA_CFLAGS="$(echo %{optflags} -Wno-error | sed -e 's:-march=[[:alnum:]]* ::g')"
@@ -52,6 +56,8 @@ make V=1 CONFIG_RTE_BUILD_SHARED_LIB=n
 make -C docs/ V=1 man
 
 %install
+unset RTE_SDK
+. /etc/profile.d/dpdk-sdk-%{_arch}.sh
 # No working "install" target, lets do it manually (sigh)
 mkdir -p %{buildroot}%{_bindir}
 mkdir -p %{buildroot}%{_libdir}/%{name}
@@ -75,6 +81,9 @@ install -m 644 docs/build/man/pktgen.1 %{buildroot}%{_mandir}/%{name}/man1/pktge
 %{_mandir}/%{name}
 
 %changelog
+* Fri Jan 12 2018 Timothy Redaelli <tredaelli@redhat.com> - 3.4.8-0
+- Update to 3.4.8 linked with DPDK 17.11
+
 * Fri Nov 17 2017 Timothy Redaelli <tredaelli@redhat.com> - 3.4.2-0.1
 - Update to 3.4.2 linked with DPDK 17.11
 

@@ -8,10 +8,12 @@
 %bcond_with pdfdoc
 
 Name: dpdk
-Version: 17.11
-Release: 0.3%{?dist}
+Version: 18.02
+Release: 0.1%{?dist}
 URL: http://dpdk.org
 Source: http://fast.dpdk.org/rel/dpdk-%{version}.tar.xz
+Patch0: dpdk-dpaa-build.patch
+
 
 Summary: Set of libraries and drivers for fast packet processing
 
@@ -56,7 +58,8 @@ ExclusiveArch: x86_64 i686 aarch64 ppc64le
 
 %define target %{machine_arch}-%{machine_tmpl}-linuxapp-gcc
 
-BuildRequires: kernel-headers, libpcap-devel, doxygen, python-sphinx, zlib-devel
+BuildRequires: gcc
+BuildRequires: kernel-headers, libpcap-devel, doxygen, python2-sphinx, zlib-devel
 BuildRequires: numactl-devel
 %if %{with pdfdoc}
 BuildRequires: texlive-dejavu inkscape texlive-latex-bin-bin
@@ -74,7 +77,7 @@ fast packet processing in the user space.
 
 %package devel
 Summary: Data Plane Development Kit development files
-Requires: %{name}%{?_isa} = %{version}-%{release} python
+Requires: %{name}%{?_isa} = %{version}-%{release} python2
 %if ! %{with shared}
 Provides: %{name}-static = %{version}-%{release}
 %endif
@@ -94,7 +97,7 @@ API programming documentation for the Data Plane Development Kit.
 %package tools
 Summary: Tools for setting up Data Plane Development Kit environment
 Requires: %{name} = %{version}-%{release}
-Requires: kmod pciutils findutils iproute
+Requires: kmod pciutils findutils iproute python2-pyelftools
 
 %description tools
 %{summary}
@@ -117,6 +120,7 @@ as L2 and L3 forwarding.
 
 %prep
 %setup -q
+%patch0 -p1
 
 %build
 # set up a method for modifying the resulting .config file
@@ -134,7 +138,12 @@ unset RTE_SDK RTE_INCLUDE RTE_TARGET
 # Avoid appending second -Wall to everything, it breaks upstream warning
 # disablers in makefiles. Strip expclit -march= from optflags since they
 # will only guarantee build failures, DPDK is picky with that.
-export EXTRA_CFLAGS="$(echo %{optflags} | sed -e 's:-Wall::g' -e 's:-march=[[:alnum:]]* ::g') -Wformat -fPIC"
+# Note: _hardening_ldflags has to go on the extra cflags line because dpdk is
+# astoundingly convoluted in how it processes its linker flags.  Fixing it in
+# dpdk is the preferred solution, but adjusting to allow a gcc option in the
+# ldflags, even when gcc is used as the linker, requires large tree-wide changes
+export EXTRA_CFLAGS="$(echo %{optflags} | sed -e 's:-Wall::g' -e 's:-march=[[:alnum:]]* ::g') -Wformat -fPIC %{_hardening_ldflags}"
+export EXTRA_LDFLAGS=$(echo %{__global_ldflags} | sed -e's/-Wl,//g' -e's/-spec.*//')
 
 # DPDK defaults to using builder-specific compiler flags.  However,
 # the config has been changed by specifying CONFIG_RTE_MACHINE=default
@@ -163,6 +172,16 @@ setconf CONFIG_RTE_LIBRTE_KNI n
 setconf CONFIG_RTE_KNI_KMOD n
 setconf CONFIG_RTE_KNI_PREEMPT_DEFAULT n
 
+setconf CONFIG_RTE_APP_EVENTDEV n
+
+setconf CONFIG_RTE_LIBRTE_NFP_PMD y
+
+%ifarch aarch64
+setconf CONFIG_RTE_LIBRTE_DPAA_BUS y
+setconf CONFIG_RTE_LIBRTE_DPAA_MEMPOOL y
+setconf CONFIG_RTE_LIBRTE_DPAA_PMD y
+%endif
+
 %if %{with shared}
 setconf CONFIG_RTE_BUILD_SHARED_LIB y
 %endif
@@ -184,9 +203,8 @@ unset RTE_SDK RTE_INCLUDE RTE_TARGET
 rm -rf %{buildroot}%{sdkdir}/usertools
 rm -rf %{buildroot}%{_sbindir}/dpdk_nic_bind
 rm -rf %{buildroot}%{_bindir}/dpdk-test-crypto-perf
-rm -rf %{buildroot}%{_bindir}/dpdk-test-eventdev
 %endif
-rm -f %{buildroot}%{sdkdir}/tools/setup.sh
+rm -f %{buildroot}%{sdkdir}/usertools/dpdk-setup.sh
 
 %if %{with examples}
 find %{target}/examples/ -name "*.map" | xargs rm -f
@@ -227,6 +245,7 @@ sed -i -e 's:-%{machine_tmpl}-:-%{machine}-:g' %{buildroot}/%{_sysconfdir}/profi
 %files
 # BSD
 %{_bindir}/testpmd
+%{_bindir}/testbbdev
 %{_bindir}/dpdk-procinfo
 %if %{with shared}
 %{_libdir}/*.so.*
@@ -261,7 +280,6 @@ sed -i -e 's:-%{machine_tmpl}-:-%{machine}-:g' %{buildroot}/%{_sysconfdir}/profi
 %{_bindir}/dpdk-pdump
 %{_bindir}/dpdk-pmdinfo
 %{_bindir}/dpdk-test-crypto-perf
-%{_bindir}/dpdk-test-eventdev
 %endif
 
 %if %{with examples}
@@ -271,18 +289,35 @@ sed -i -e 's:-%{machine_tmpl}-:-%{machine}-:g' %{buildroot}/%{_sysconfdir}/profi
 %endif
 
 %changelog
-* Tue Nov 21 2017 Timothy Redaelli <tredaelli@redhat.com> - 17.11-0.2
-- Install usertools in dpdk-tools
+* Tue Feb 27 2018 Neil Horman <nhorman@redhat.com> - 18.02-2
+- Fix rpm ldflags usage (bz 1548404)
 
-* Fri Nov 17 2017 Timothy Redaelli <tredaelli@redhat.com> - 17.11-0.1
-- Update to latest upstream
-- Add a patch to fix shared linking of testpmd with virtio pmd
+* Mon Feb 19 2018 Neil Horman <nhorman@redhat.com> - 18.02-1
+- update to latest upstream
 
-* Wed Aug 09 2017 Timothy Redaelli <tredaelli@redhat.com> - 17.08-0
+* Wed Feb 07 2018 Fedora Release Engineering <releng@fedoraproject.org> - 17.11-4
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_28_Mass_Rebuild
+
+* Wed Jan 03 2018 Iryna Shcherbina <ishcherb@redhat.com> - 17.11-3
+- Update Python 2 dependency declarations to new packaging standards
+  (See https://fedoraproject.org/wiki/FinalizingFedoraSwitchtoPython3)
+
+* Thu Nov 30 2017 Neil Horman <nhorman@redhat.com> - 17.11-2
+- Fix dangling symlinks (bz 1519322)
+- Fix devtools->usertools conversion (bz 1519332)
+- Fix python-pyelftools requirement (bz 1519336)
+
+* Thu Nov 16 2017 Neil Horman <nhorman@redhat.com> - 17.11-1
 - Update to latest upstream
 
-* Fri Jul 14 2017 Timothy Redaelli <tredaelli@redhat.com> - 17.05.1-0
+* Wed Aug 09 2017 Neil Horman <nhorman@redhat.com> - 17.08-1
 - Update to latest upstream
+
+* Mon Jul 31 2017 Neil Horman <nhorman@redhat.com> - 17.05-2
+- backport rte_eth_tx_done_cleanup map fix (#1476341)
+
+* Wed Jul 26 2017 Fedora Release Engineering <releng@fedoraproject.org> - 17.05-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_27_Mass_Rebuild
 
 * Mon May 15 2017 Neil Horman <nhorman@redhat.com> - 17.05-1
 - Update to latest upstream

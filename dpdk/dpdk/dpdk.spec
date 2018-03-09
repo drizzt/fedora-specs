@@ -9,7 +9,7 @@
 
 Name: dpdk
 Version: 18.02
-Release: 0.1%{?dist}
+Release: 0.3%{?dist}
 URL: http://dpdk.org
 Source: http://fast.dpdk.org/rel/dpdk-%{version}.tar.xz
 Patch0: dpdk-dpaa-build.patch
@@ -97,7 +97,7 @@ API programming documentation for the Data Plane Development Kit.
 %package tools
 Summary: Tools for setting up Data Plane Development Kit environment
 Requires: %{name} = %{version}-%{release}
-Requires: kmod pciutils findutils iproute python2-pyelftools
+Requires: kmod pciutils findutils iproute python-pyelftools
 
 %description tools
 %{summary}
